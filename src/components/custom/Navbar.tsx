@@ -1,14 +1,22 @@
+
 "use client"
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { ArrowRight, Menu, Crown, ChevronDown, Code } from 'lucide-react'
-import useAuthStore from '@/store/useStore'
-import { useRouter } from 'next/navigation'
-import axios from 'axios'
-import { ModeToggle } from './ModeToggle'
+import {
+  ArrowRight,
+  Menu,
+  Crown,
+  ChevronDown,
+  Code,
+  Keyboard,
+} from "lucide-react"
+import useAuthStore from "@/store/useStore"
+import { useRouter } from "next/navigation"
+import axios from "axios"
+import { ModeToggle } from "./ModeToggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,110 +24,183 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+const navLinkClass =
+  "text-sm font-medium text-slate-600 transition-colors hover:text-violet-600 dark:text-slate-300 dark:hover:text-violet-300"
+
 const NavItems = () => {
-  const { isPremium } = useAuthStore();
-  
+  const { isPremium } = useAuthStore()
+
   return (
     <>
-      <Link href="/playground" className="text-gray-600 dark:text-gray-200 hover:text-gray-900 transition-colors">
+      <Link href="/playground" className={navLinkClass}>
         Play Now
       </Link>
-      <Link href="/lobby" className="text-gray-600 dark:text-gray-200 hover:text-gray-900 transition-colors">
+
+      <Link href="/lobby" className={navLinkClass}>
         Play with friends
       </Link>
+
       {isPremium ? (
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center text-gray-600 dark:text-gray-200 hover:text-gray-900 transition-colors">
-            <Crown className="h-4 w-4 mr-1 text-yellow-500" />
+          <DropdownMenuTrigger className={`${navLinkClass} flex items-center`}>
+            <Crown className="mr-1 h-4 w-4 text-amber-500" />
             Premium
-            <ChevronDown className="h-4 w-4 ml-1" />
+            <ChevronDown className="ml-1 h-4 w-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem>
-              <Link href="/premium/themes" className="w-full">Custom Themes</Link>
+
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href="/premium/themes" className="w-full">
+                Custom Themes
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/premium/stats" className="w-full">Advanced Stats</Link>
+
+            <DropdownMenuItem asChild>
+              <Link href="/premium/stats" className="w-full">
+                Advanced Stats
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/premium/custom-texts" className="w-full">Custom Texts</Link>
+
+            <DropdownMenuItem asChild>
+              <Link href="/premium/custom-texts" className="w-full">
+                Custom Texts
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/premium/challenges" className="w-full">Daily Challenges</Link>
+
+            <DropdownMenuItem asChild>
+              <Link href="/premium/challenges" className="w-full">
+                Daily Challenges
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Link href="/premium/leetcode" className="w-full flex items-center">
-                <Code className="h-4 w-4 mr-1 text-blue-500" />
+
+            <DropdownMenuItem asChild>
+              <Link
+                href="/premium/leetcode"
+                className="flex w-full items-center"
+              >
+                <Code className="mr-2 h-4 w-4 text-blue-500" />
                 LeetCode Tracker
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <Link href='/subscription' className="text-gray-600 dark:text-gray-200 hover:text-gray-900 transition-colors">
+        <Link href="/subscription" className={navLinkClass}>
           Pricing
         </Link>
       )}
-      <Link href='/leaderboard' className="text-gray-600 dark:text-gray-200 hover:text-gray-900 transition-colors">
-        leaderboard
+
+      <Link href="/leaderboard" className={navLinkClass}>
+        Leaderboard
       </Link>
+
       <ModeToggle />
     </>
   )
 }
 
 export function Navbar() {
-  const router = useRouter();
-  const { isAuthenticated, logout, user, isPremium } = useAuthStore()
+  const router = useRouter()
+  const { isAuthenticated, logout, user } = useAuthStore()
   const [isOpen, setIsOpen] = useState(false)
-  
-  const handleLogout = async () => {
-    // api call for logout 
-    const response = await axios.get('/api/logout')
-    console.log("response:", response.data)
-    // Call the logout function from your auth store
-    logout()
 
-    router.push('/login')
+  const handleLogout = async () => {
+    try {
+      await axios.get("/api/logout")
+    } catch (error) {
+      console.error("Logout request failed:", error)
+    } finally {
+      logout()
+      setIsOpen(false)
+      router.push("/login")
+    }
   }
 
   return (
-    <header className="mx-auto dark:bg-background p-6 border-b  w-full ">
-      <nav className="flex justify-between items-center">
-        <h1 className="text-2xl dark:text-black font-bold text-gray-900">
-        <Link href="/" className="text-2xl font-semibold text-blue-500">
-            TypeBlaze
-          </Link>
-        </h1>
-        <div className="hidden md:flex justify-center items-center space-x-6">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200/70 bg-white/85 backdrop-blur-xl dark:border-white/10 dark:bg-[#080914]/85">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+        {/* Typelivo brand */}
+        <Link
+          href="/"
+          aria-label="Typelivo home"
+          className="group inline-flex shrink-0 items-center gap-2.5"
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/20 transition-transform group-hover:scale-105">
+            <Keyboard className="h-5 w-5" />
+          </span>
+
+          <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Type<span className="bg-gradient-to-r from-violet-500 to-indigo-500 bg-clip-text text-transparent">livo</span>
+          </span>
+        </Link>
+
+        {/* Desktop navigation */}
+        <div className="hidden items-center gap-6 md:flex lg:gap-8">
           <NavItems />
-          {/* Conditional Rendering for Auth Button */}
+
           {isAuthenticated ? (
-            <Button className=' bg-blue-500 text-white' onClick={handleLogout}>Logout</Button>
+            <Button
+              onClick={handleLogout}
+              className="rounded-full bg-slate-900 px-5 text-white transition hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              Logout
+            </Button>
           ) : (
             <Link
-            href="/signup"
-            className="text-sm bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition-colors flex items-center"
-          >
-            Join Now
-            <ArrowRight className="ml-1 h-4 w-4" />
-          </Link>
+              href="/signup"
+              className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-500/20 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/30"
+            >
+              Join Now
+              <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
           )}
         </div>
+
+        {/* Mobile navigation */}
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild className="md:hidden">
-            <Button variant="ghost" size="icon" aria-label="Menu">
-              <Menu className="h-6 w-6 text-gray-600" />
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Open navigation menu"
+              className="rounded-xl border-slate-200 bg-white/70 dark:border-white/10 dark:bg-white/[0.04]"
+            >
+              <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[240px] sm:w-[300px]">
-            <nav className="flex flex-col space-y-4 mt-8">
+
+          <SheetContent
+            side="right"
+            className="w-[280px] border-slate-200 bg-white dark:border-white/10 dark:bg-[#0c0d1b] sm:w-[320px]"
+          >
+            <div className="mb-8 mt-4 flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white">
+                <Keyboard className="h-5 w-5" />
+              </span>
+              <span className="text-xl font-bold text-slate-900 dark:text-white">
+                Type<span className="bg-gradient-to-r from-violet-500 to-indigo-500 bg-clip-text text-transparent">livo</span>
+              </span>
+            </div>
+
+            <nav className="flex flex-col items-start gap-6">
               <NavItems />
-              {/* Conditional Rendering for Auth Button */}
-              {user?.token ? (
-                <Button className='bg-blue-500 text-white' onClick={handleLogout}>Logout</Button>
+
+              {isAuthenticated ? (
+                <Button
+                  onClick={handleLogout}
+                  className="w-full rounded-full bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                >
+                  Logout
+                </Button>
               ) : (
-                <Link href="/signup">Join Now</Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setIsOpen(false)}
+                  className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+                >
+                  Join Now
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
               )}
             </nav>
           </SheetContent>

@@ -1,17 +1,43 @@
 import { connectDb } from "@/dbconfig/dbconfig";
-import { getDataFromToken } from "@/lib/getDataFromToken";
 import User from "@/models/user.model";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-connectDb();
+// Always read fresh leaderboard data rather than serving a cached response.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-//leaderboard api send the top 10 users with thier username , topSpeed and avgSpeed and testAttempted 
+export async function GET() {
+  try {
+    // Wait for MongoDB to be connected before querying users.
+    await connectDb();
 
-export async function GET(request:NextRequest){
-    try{
-        const users = await User.find().sort({topSpeed:-1}).limit(50).select("fullname username topSpeed  testAttempted");
-        return NextResponse.json({message:"leaderboard found",users},{status:200})
-    }catch(error:any){
-        return NextResponse.json({message:"failed to load leaderboard"},{status:500})
-    }
+    const users = await User.find({})
+      .select("_id fullname username topSpeed testAttempted")
+      .sort({ topSpeed: -1 })
+      .limit(50)
+      .lean();
+
+    return NextResponse.json(
+      {
+        message: users.length > 0 ? "Leaderboard loaded" : "No leaderboard users found",
+        users,
+      },
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      },
+    );
+  } catch (error) {
+    console.error("[LEADERBOARD_GET] Failed to load leaderboard:", error);
+
+    return NextResponse.json(
+      {
+        message: "Failed to load leaderboard. Please try again later.",
+        users: [],
+      },
+      { status: 500 },
+    );
+  }
 }

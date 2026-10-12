@@ -206,10 +206,15 @@ export default function SubscriptionPage() {
       razorpay.open();
     } catch (error: unknown) {
       console.error("Order creation error:", error);
+      // Avoid relying on axios.isAxiosError typing; extract a server message safely.
+      const responseMessage =
+        typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { data?: { message?: unknown } } }).response?.data?.message
+          : undefined;
       const message =
-        axios.isAxiosError(error)
-          ? (error.response?.data?.message as string | undefined)
-          : error instanceof Error
+        typeof responseMessage === "string" && responseMessage.trim()
+          ? responseMessage
+          : error instanceof Error && error.message
             ? error.message
             : undefined;
       setErrorMessage(message || "Something went wrong. Please try again.");

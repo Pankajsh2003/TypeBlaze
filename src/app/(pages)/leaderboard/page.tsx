@@ -98,14 +98,21 @@ export default function LeaderboardPage() {
       console.error("Error fetching leaderboard:", requestError)
 
       let message = "Could not load the leaderboard. Please try again."
-      if (axios.isAxiosError(requestError)) {
-        const serverMessage = requestError.response?.data?.message
+      if (requestError && typeof requestError === "object") {
+        const errorInfo = requestError as {
+          response?: { data?: { message?: unknown }; status?: number }
+          code?: string
+          message?: string
+        }
+        const serverMessage = errorInfo.response?.data?.message
         if (typeof serverMessage === "string" && serverMessage.trim()) {
           message = serverMessage
-        } else if (requestError.code === "ERR_NETWORK") {
+        } else if (errorInfo.code === "ERR_NETWORK") {
           message = "Could not reach the leaderboard API. Check the deployment and database connection."
-        } else if (requestError.response?.status) {
-          message = `Leaderboard request failed (HTTP ${requestError.response.status}).`
+        } else if (errorInfo.response?.status) {
+          message = `Leaderboard request failed (HTTP ${errorInfo.response.status}).`
+        } else if (typeof errorInfo.message === "string" && errorInfo.message) {
+          message = errorInfo.message
         }
       } else if (requestError instanceof Error && requestError.message) {
         message = requestError.message

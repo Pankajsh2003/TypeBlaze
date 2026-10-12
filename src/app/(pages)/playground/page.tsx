@@ -122,7 +122,7 @@ function TypingTest() {
   const [challengeMode, setChallengeMode] = useState<boolean>(false)
   const [customMode, setCustomMode] = useState<boolean>(false)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
-  // Track every inserted character attempt so deleting a typo does not erase it from accuracy.
+  // Count every newly typed character, including mistakes later corrected with Backspace.
   const totalKeystrokesRef = useRef(0)
   const incorrectKeystrokesRef = useRef(0)
   const previousTypedTextRef = useRef("")
@@ -209,14 +209,33 @@ function TypingTest() {
     }
   }, [searchParams, isPremium, systemTheme])
 
-  // Update visible text when fullText changes or page changes
+  // Reset test statistics whenever a new passage is loaded.
+  useEffect(() => {
+    if (!fullText) return
+
+    totalKeystrokesRef.current = 0
+    incorrectKeystrokesRef.current = 0
+    previousTypedTextRef.current = ""
+    setCurrentPage(0)
+    setTypedText("")
+    setHasStarted(false)
+    setIsTestRunning(false)
+    setTimeLeft(selectedTime)
+    setAccuracy(100)
+    setWpm(0)
+    setIsDialogOpen(false)
+  }, [fullText])
+
+  // Update visible text when the passage or page changes.
   useEffect(() => {
     if (fullText) {
-      const startIndex = currentPage * CHARS_PER_PAGE;
-      const endIndex = Math.min(startIndex + CHARS_PER_PAGE, fullText.length);
-      setVisibleText(fullText.substring(startIndex, endIndex));
+      const startIndex = currentPage * CHARS_PER_PAGE
+      const endIndex = Math.min(startIndex + CHARS_PER_PAGE, fullText.length)
+      setVisibleText(fullText.substring(startIndex, endIndex))
+    } else {
+      setVisibleText("")
     }
-  }, [fullText, currentPage]);
+  }, [fullText, currentPage])
 
   // Listen for system theme changes
   useEffect(() => {
@@ -260,105 +279,86 @@ function TypingTest() {
   }
 
   // Typing handler
-  // Accuracy is based on all inserted character attempts. Backspacing removes
-  // text from the input, but does not remove an earlier mistake from the score.
   const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     const typed = e.target.value
-    const currentVisibleTextLength = visibleText.length
 
-    // Guard against input longer than the current text chunk.
-    if (typed.length > currentVisibleTextLength) return
+    // Keep input limited to the current passage chunk.
+    if (typed.length > visibleText.length) return
 
-    // Find the inserted/replaced portion by comparing the previous and new values.
-    // Deletions alone do not count as new keystrokes.
-    const previousTyped = previousTypedTextRef.current
-    let prefixLength = 0
-
-    while (
-      prefixLength < previousTyped.length &&
-      prefixLength < typed.length &&
-      previousTyped[prefixLength] === typed[prefixLength]
-    ) {
-      prefixLength++
-    }
-
-    let suffixLength = 0
-    while (
-      suffixLength < previousTyped.length - prefixLength &&
-      suffixLength < typed.length - prefixLength &&
-      previousTyped[previousTyped.length - 1 - suffixLength] ===
-        typed[typed.length - 1 - suffixLength]
-    ) {
-      suffixLength++
-    }
-
-    const insertedText = typed.slice(prefixLength, typed.length - suffixLength)
-    for (let i = 0; i < insertedText.length; i++) {
-      totalKeystrokesRef.current += 1
-      const expectedCharacter = visibleText[prefixLength + i]
-      if (insertedText[i] !== expectedCharacter) {
-        incorrectKeystrokesRef.current += 1
-      }
-    }
-    previousTypedTextRef.current = typed
-
-    // Start the test on the first non-empty input.
+    // Start the timer on the first entered character.
     if (!hasStarted && typed.length > 0) {
       setHasStarted(true)
       setIsTestRunning(true)
     }
 
-    setTypedText(typed)
+    // Find the first changed position so normal typing and replacing selected text
+    // both count as new keystrokes. Deletions themselves are not counted.
+    const previousTyped = previousTypedTextRef.current
+    let commonPrefixLength = 0
+    while (
+      commonPrefixLength < previousTyped.length &&
+      commonPrefixLength < typed.length &&
+      previousTyped[commonPrefixLength] === typed[commonPrefixLength]
+    ) {
+      commonPrefixLength++
+    }
 
-    const totalAttempts = totalKeystrokesRef.current
-    const accuracyValue = totalAttempts > 0
-      ? ((totalAttempts - incorrectKeystrokesRef.current) / totalAttempts) * 100
+    for (let i = commonPrefixLength; i < typed.length; i++) {
+      totalKeystrokesRef.current += 1
+      if (typed[i] !== visibleText[i]) {
+        incorrectKeystrokesRef.current += 1
+      }
+    }
+    previousTypedTextRef.current = typed
+
+    const accuracyValue = totalKeystrokesRef.current > 0
+      ? ((totalKeystrokesRef.current - incorrectKeystrokesRef.current) / totalKeystrokesRef.current) * 100
       : 100
+
+    setTypedText(typed)
     setAccuracy(accuracyValue)
 
-    // Calculate WPM based on the completed chunks and the current input.
-    const totalTypedText = fullText.substring(0, currentPage * CHARS_PER_PAGE) + typed
+    // Calculate WPM using all completed chunks plus the text typed in this chunk.
+    const completedText = fullText.substring(0, currentPage * CHARS_PER_PAGE)
+    const totalTypedText = completedText + typed
     const words = totalTypedText.trim().split(/\s+/).filter((word) => word.length > 0)
     const elapsedSeconds = selectedTime - timeLeft
     const wpmValue = elapsedSeconds > 0 ? words.length / (elapsedSeconds / 60) : 0
-    setWpm(Math.round(wpmValue))
+    const roundedWpm = Math.round(wpmValue)
+    setWpm(roundedWpm)
 
-    const reachedEndOfChunk = currentVisibleTextLength > 0 && typed.length >= currentVisibleTextLength
-    const hasMoreText = currentPage * CHARS_PER_PAGE + currentVisibleTextLength < fullText.length
+    // When a chunk is full, either move to the next chunk or finish the test.
+    if (typed.length === visibleText.length && visibleText.length > 0) {
+      const isLastPage = (currentPage + 1) * CHARS_PER_PAGE >= fullText.length
 
-    // Advance to the next text chunk once the current chunk has been attempted.
-    if (reachedEndOfChunk && hasMoreText) {
-      setCurrentPage((prevPage) => prevPage + 1)
-      setTypedText("")
-      previousTypedTextRef.current = ""
-      return
-    }
+      if (!isLastPage) {
+        previousTypedTextRef.current = ""
+        setTypedText("")
+        setCurrentPage((page) => page + 1)
+      } else {
+        setIsTestRunning(false)
+        setIsDialogOpen(true)
 
-    // Finish at the end of the final chunk even when some characters were incorrect.
-    const isLastPage = (currentPage + 1) * CHARS_PER_PAGE >= fullText.length
-    if (reachedEndOfChunk && isLastPage) {
-      setIsTestRunning(false)
-      setIsDialogOpen(true)
-
-      // Check challenge status using the most recent values from this keystroke.
-      if (challengeMode && activeChallenge) {
-        checkChallengeCompletion(accuracyValue, Math.round(wpmValue))
+        if (challengeMode && activeChallenge) {
+          checkChallengeCompletion(roundedWpm, accuracyValue)
+        }
       }
     }
   }
 
-  // Check if challenge is completed
-  const checkChallengeCompletion = (accuracyResult = accuracy, wpmResult = wpm): void => {
+  // Check if challenge is completed. Optional values allow immediate checks to
+  // use the latest typing statistics instead of stale state from the previous render.
+  const checkChallengeCompletion = (currentWpm: number = wpm, currentAccuracy: number = accuracy): void => {
     if (!activeChallenge) return
     
     let isCompleted = false
     
     switch (activeChallenge.type) {
       case "speed":
-        isCompleted = wpmResult >= activeChallenge.target
+        isCompleted = currentWpm >= activeChallenge.target
         break
       case "accuracy":
-        isCompleted = accuracyResult >= activeChallenge.target
+        isCompleted = currentAccuracy >= activeChallenge.target
         break
       case "endurance":
         // For endurance, just completing the test is a success
@@ -366,11 +366,11 @@ function TypingTest() {
         break
       case "precision":
         // Precision challenges need both good accuracy and speed
-        isCompleted = accuracyResult >= activeChallenge.target
+        isCompleted = currentAccuracy >= activeChallenge.target
         break
       case "code":
         // Code challenges focus on accuracy
-        isCompleted = accuracyResult >= activeChallenge.target
+        isCompleted = currentAccuracy >= activeChallenge.target
         break
     }
     

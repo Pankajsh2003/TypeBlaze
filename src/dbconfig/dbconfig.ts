@@ -1,56 +1,52 @@
 import mongoose from "mongoose";
 
-let isConnected = false;
+type MongooseCache = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+};
 
-export async function connectDb(): Promise<void> {
-    try {
-        // If already connected, return
-        if (isConnected) {
-            console.log("MongoDB connection already established");
-            return;
-        }
+declare global {
+  // Reuse one connection/promise between invocations in the same Node.js instance.
+  // eslint-disable-next-line no-var
+  var mongooseCache: MongooseCache | undefined;
+}
 
-        // Check if MONGODB_URL is defined
-        if (!process.env.MONGODB_URL) {
-            throw new Error("MONGODB_URL is not defined in the environment variables");
-        }
+const cached: MongooseCache =
+  globalThis.mongooseCache ??
+  (globalThis.mongooseCache = { conn: null, promise: null });
 
-        // Connection options for better stability
-        const options = {
-            serverSelectionTimeoutMS: 5000,
-            connectTimeoutMS: 10000,
-        };
+export async function connectDb(): Promise<typeof mongoose> {
+  const uri = process.env.MONGODB_URL;
 
-        await mongoose.connect(process.env.MONGODB_URL, options);
+  if (!uri) {
+    throw new Error(
+      "MONGODB_URL is missing. Add it to the Vercel project's Environment Variables."
+    );
+  }
 
-        const connection = mongoose.connection;
+  // If this serverless instance already has an active connection, reuse it.
+  if (mongoose.connection.readyState === 1) {
+    cached.conn = mongoose;
+    return mongoose;
+  }
 
-        connection.on("connected", () => {
-            isConnected = true;
-            console.log("Connected to MongoDB successfully");
-        });
+  // Share an in-progress connection attempt so parallel requests do not create
+  // multiple simultaneous connections.
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(uri, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+      })
+      .catch((error: unknown) => {
+        // Let the API route receive the real connection error instead of
+        // continuing to run queries against a disconnected database.
+        cached.promise = null;
+        cached.conn = null;
+        throw error;
+      });
+  }
 
-        connection.on("error", (error: Error) => {
-            console.log("Error connecting to MongoDB");
-            console.error(error);
-            isConnected = false;
-        });
-
-        connection.on("disconnected", () => {
-            console.log("MongoDB disconnected");
-            isConnected = false;
-        });
-
-        // Handle process termination
-        process.on('SIGINT', async () => {
-            await mongoose.connection.close();
-            console.log('MongoDB connection closed due to app termination');
-            process.exit(0);
-        });
-
-    } catch (error: any) {
-        console.log('Something went wrong while connecting to MongoDB');
-        console.error(error);
-        isConnected = false;
-    }
+  cached.conn = await cached.promise;
+  return cached.conn;
 }

@@ -32,7 +32,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    // Read actual form values, including browser-autofilled values.
+    // Read the actual form fields, including browser-autofilled values.
     const formData = new FormData(e.currentTarget)
     const email = String(formData.get('email') ?? '')
       .trim()
@@ -64,7 +64,8 @@ export default function LoginPage() {
       router.push('/playground')
     } catch (error: unknown) {
       const message = axios.isAxiosError<{ message?: string }>(error)
-        ? error.response?.data?.message || 'Failed to log in. Please try again.'
+        ? error.response?.data?.message ||
+          'Failed to log in. Please check your details and try again.'
         : 'Failed to log in. Please try again.'
 
       console.error('Login request failed:', message)
@@ -147,7 +148,7 @@ export default function LoginPage() {
 
         <div className="text-center mt-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link
               href="/signup"
               className="font-medium text-blue-600 hover:text-blue-800"
